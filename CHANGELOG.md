@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Routers with any name** (#98): endpoints were only found on a variable called `app`, `server`, `router` or similar, so a Hono app where each file exports its own router (`export const teams = new Hono()`), or an Express router named `orderRoutes`, showed up with almost no endpoints. Now any name a file binds to `new Hono()`, `express.Router()`, `Router()`, `express()` or `Fastify()` counts, and its endpoints get the prefix it's mounted under. Other objects with `get` and `post` methods, like a `Map` or an axios client, are still left alone.
+
 ## 0.6.3 (2026-11-02)
 
 - **Endpoints in route tables** (#54, from @Yahhi): servers without a framework often keep their endpoints in a lookup a dispatcher reads, keyed by method and path, like `{ "GET /api/orders": listOrders }` in JavaScript or a Python dict of handlers behind a cloud function. Floorplan found no endpoints in these apps, so the website's requests weren't linked to the server. Now each key is an endpoint, named after its handler (a function, an inline function that calls one, or a wrapped one like `requireAuth(createOrder)`). Tables of other things keyed the same way, like access levels or notes, are left alone. Health doesn't judge sign-in on these endpoints, because the dispatcher or the handler checks it where Floorplan can't see.

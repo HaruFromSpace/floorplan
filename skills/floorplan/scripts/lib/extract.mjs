@@ -241,8 +241,12 @@ function extractJs(src, filePath) {
   // Express / Koa / Hono style routes and mounts
   const routes = [];
   const mounts = [];
+  // Any name this file binds to a new app or router counts too, whatever it's called:
+  // `export const frentes = new Hono<Env>()`, `const userRoutes = express.Router()`, `const api = Router()`
+  const appVars = new Set(all(/(?:^|[;\n{}])[ \t]*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=\n]*)?=\s*(?:new\s+(?:Hono|Router|Elysia)\b|(?:express|Fastify|fastify|Koa)\s*\(|(?:express\s*\.\s*)?Router\s*\()/g, code).map((m) => m[1]));
+  const isServerVar = (name) => /^(app|server|fastify|hono|routes?|[a-z]*Router|router)$/.test(name) || appVars.has(name);
   for (const m of all(/\b([A-Za-z_$][\w$]*)\.(get|post|put|patch|delete|all|options|head)\(\s*["'`](\/[^"'`]*)["'`]/g, code)) {
-    if (!/^(app|server|fastify|hono|routes?|[a-z]*Router|router)$/.test(m[1])) continue;
+    if (!isServerVar(m[1])) continue;
     routes.push({ method: m[2].toUpperCase(), path: m[3], var: m[1], line: at(m.index) });
   }
   for (const m of all(/\b([A-Za-z_$][\w$]*)\.(use|route)\(\s*["'`](\/[^"'`]*)["'`]\s*,([^\n;]*)/g, code)) {
@@ -276,7 +280,8 @@ function extractJs(src, filePath) {
   const triggers = /firebase-functions/.test(code) ? firebaseFunctions(code, at, routes, mounts) : [];
 
   // a mount's prefix (including Fastify's `prefix: '/api'` option, often on a line of its own) isn't a request
-  const serverLine = /\b\w+\.(use|route)\(\s*["'`]\/|\b(?:app|server|fastify|hono|routes?|router|[a-z]+Router)\.(?:get|post|put|patch|delete|all|options|head)\(\s*["'`]\/|\bprefix\s*:\s*["'`]\//;
+  const extraVars = [...appVars].map((v) => '|' + v.replace(/\$/g, '\\$')).join('');
+  const serverLine = new RegExp(String.raw`\b\w+\.(use|route)\(\s*["'\`]\/|\b(?:app|server|fastify|hono|routes?|router|[a-z]+Router${extraVars})\.(?:get|post|put|patch|delete|all|options|head)\(\s*["'\`]\/|\bprefix\s*:\s*["'\`]\/`);
   const { calls, hosts } = extractCalls(code, at, { skip: serverLine });
   const seenCall = new Set(calls.map((c) => `${c.line}|${c.path}`));
   for (const c of wrapperCalls(code, at)) if (!seenCall.has(`${c.line}|${c.path}`)) calls.push(c);
